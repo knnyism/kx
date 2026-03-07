@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-kx-engine = { path = "../kx-engine" }
-
 anyhow.workspace = true
+
+kx-engine = { path = "../kx-engine" }
 winit = { version = "0.30.12", features = ["rwh_06"] }
 meshopt = "0.6.2"
 gltf = "1.4.1"
