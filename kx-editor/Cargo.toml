@@ -1,0 +1,22 @@
+[package]
+name = "kx-editor"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+kx-engine = { path = "../kx-engine" }
+
+anyhow.workspace = true
+winit = { version = "0.30.12", features = ["rwh_06"] }
+meshopt = "0.6.2"
+gltf = "1.4.1"
+
+# egui
+egui = "0.33.3"
+egui-ash-renderer = { version = "0.11.0", features = [
+    "gpu-allocator",
+    "dynamic-rendering",
+] }
+egui_dock = "0.18.0"
+egui-notify = "0.21.0"
+transform-gizmo-egui = "0.8.0"
