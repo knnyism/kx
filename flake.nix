@@ -29,25 +29,16 @@
         toolchain
         fenix.packages.${system}.rust-analyzer
 
-        # linker + build tools
         gcc
-        pkg-config
-        cmake
 
-        # vulkan
         vulkan-loader
         vulkan-headers
         vulkan-validation-layers
         vulkan-tools
         shaderc
 
-        # windowing (wayland + x11 for winit)
         wayland
         libxkbcommon
-        libx11
-        libxcursor
-        libxrandr
-        libxi
       ];
 
       LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
