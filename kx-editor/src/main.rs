@@ -1,5 +1,5 @@
 use anyhow::Result;
-use kx_engine::renderer::context::VulkanContext;
+use kx_engine::renderer::VulkanContext;
 use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,

@@ -11,7 +11,6 @@ winit = { version = "0.30.12", features = ["rwh_06"] }
 meshopt = "0.6.2"
 gltf = "1.4.1"
 
-# egui
 egui = "0.33.3"
 egui-ash-renderer = { version = "0.11.0", features = [
     "gpu-allocator",

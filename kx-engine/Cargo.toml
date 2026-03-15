@@ -6,12 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow.workspace = true
 
-# vulkan
 ash = { version = "0.38.0", features = ["linked"] }
 ash-window = "0.13.0"
 gpu-allocator = "0.28.0"
 raw-window-handle = "0.6"
-
-# assets
-meshopt = "0.6.2"
-gltf = "1.4.1"

@@ -861,9 +861,7 @@ dependencies = [
  "anyhow",
  "ash",
  "ash-window",
- "gltf",
  "gpu-allocator",
- "meshopt",
  "raw-window-handle",
 ]
 
