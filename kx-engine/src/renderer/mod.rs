@@ -9,7 +9,7 @@ pub struct QueueFamilyIndices {
     pub present: u32,
 }
 
-pub struct VulkanContext {
+pub struct Graphics {
     entry: ash::Entry,
     pub instance: ash::Instance,
     pub surface: vk::SurfaceKHR,
@@ -21,7 +21,7 @@ pub struct VulkanContext {
     pub present_queue: vk::Queue,
 }
 
-impl VulkanContext {
+impl Graphics {
     pub fn new(display_handle: RawDisplayHandle, window_handle: RawWindowHandle) -> Result<Self> {
         let entry = ash::Entry::linked();
 
@@ -30,7 +30,7 @@ impl VulkanContext {
             .application_version(vk::make_api_version(0, 0, 1, 0))
             .engine_name(c"kx-engine")
             .engine_version(vk::make_api_version(0, 0, 1, 0))
-            .api_version(vk::make_api_version(0, 1, 4, 0));
+            .api_version(vk::API_VERSION_1_3);
 
         let mut extensions = ash_window::enumerate_required_extensions(display_handle)?.to_vec();
 
@@ -171,7 +171,7 @@ fn find_queue_families(
     })
 }
 
-impl Drop for VulkanContext {
+impl Drop for Graphics {
     fn drop(&mut self) {
         unsafe {
             self.device.destroy_device(None);

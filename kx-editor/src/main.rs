@@ -1,5 +1,5 @@
 use anyhow::Result;
-use kx_engine::renderer::VulkanContext;
+use kx_engine::renderer::Graphics;
 use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,
@@ -12,7 +12,7 @@ use winit::{
 
 struct State {
     window: Arc<Window>,
-    context: VulkanContext,
+    context: Graphics,
 }
 
 #[derive(Default)]
@@ -42,7 +42,7 @@ impl ApplicationHandler for App {
             let display_handle = window.display_handle().unwrap().as_raw();
             let window_handle = window.window_handle().unwrap().as_raw();
 
-            let context = VulkanContext::new(display_handle, window_handle)
+            let context = Graphics::new(display_handle, window_handle)
                 .expect("failed to create vulkan context");
 
             self.state = Some(State { window, context });
