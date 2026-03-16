@@ -12,7 +12,7 @@ use winit::{
 
 struct State {
     window: Arc<Window>,
-    context: Graphics,
+    graphics: Graphics,
 }
 
 #[derive(Default)]
@@ -39,13 +39,13 @@ impl ApplicationHandler for App {
                     .expect("failed to create window"),
             );
 
-            let display_handle = window.display_handle().unwrap().as_raw();
-            let window_handle = window.window_handle().unwrap().as_raw();
+            let graphics = Graphics::new(
+                window.window_handle().unwrap(),
+                window.display_handle().unwrap(),
+            )
+            .expect("failed to create vulkan context");
 
-            let context = Graphics::new(display_handle, window_handle)
-                .expect("failed to create vulkan context");
-
-            self.state = Some(State { window, context });
+            self.state = Some(State { window, graphics });
         }
     }
     fn window_event(

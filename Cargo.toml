@@ -3,4 +3,4 @@ members = ["kx-engine", "kx-editor"]
 resolver = "3"
 
 [workspace.dependencies]
-anyhow = "1.0.102"
+anyhow = "1.0"
