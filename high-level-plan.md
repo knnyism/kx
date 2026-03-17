@@ -18,6 +18,7 @@
 
 ## week 2
 
+- custom model format
 - gltf loading and meshlet generation
 - set up depth prepass
 
@@ -28,6 +29,5 @@
 
 ## week 4
 
-- custom model format for fast as fuck asset loading
 - asset management
 - editor: asset browser?
