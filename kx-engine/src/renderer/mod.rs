@@ -1,4 +1,5 @@
 use anyhow::Result;
+use gpu_allocator::vulkan::{Allocator, AllocatorCreateDesc};
 use std::sync::Arc;
 
 use ash::vk;
@@ -29,6 +30,8 @@ pub struct Graphics {
     present_queue: vk::Queue,
 
     syncs: Vec<Sync>,
+
+    allocator: Option<Allocator>,
 }
 
 impl Graphics {
@@ -37,7 +40,7 @@ impl Graphics {
             .app_name("kx")
             .engine_name("kx-engine")
             .request_validation_layers(true)
-            .require_api_version(vk::API_VERSION_1_2)
+            .require_api_version(vk::API_VERSION_1_3)
             .use_default_debug_messenger()
             .build()?;
 
@@ -67,6 +70,19 @@ impl Graphics {
             syncs.push(create_sync(&device)?);
         }
 
+        let allocator = Some({
+            let create_desc = AllocatorCreateDesc {
+                instance: (*instance).as_ref().clone(),
+                device: (*device).as_ref().clone(),
+                physical_device: *device.physical_device().as_ref(), // awful!
+                debug_settings: Default::default(),
+                buffer_device_address: false,
+                allocation_sizes: Default::default(),
+            };
+
+            Allocator::new(&create_desc)?
+        });
+
         Ok(Self {
             instance,
             device,
@@ -75,6 +91,7 @@ impl Graphics {
             graphics_queue,
             present_queue,
             syncs,
+            allocator,
         })
     }
 
@@ -102,6 +119,8 @@ fn create_sync(device: &Device) -> Result<Sync> {
 
 impl Drop for Graphics {
     fn drop(&mut self) {
+        drop(self.allocator.take());
+
         for sync in &self.syncs {
             self.destroy_sync(sync);
         }
