@@ -57,7 +57,10 @@ impl Graphics {
 
         let swapchain_builder = SwapchainBuilder::new(instance.clone(), device.clone());
 
-        let swapchain = swapchain_builder.build()?;
+        let swapchain = swapchain_builder
+            .use_default_format_selection()
+            .use_default_present_modes()
+            .build()?;
 
         let mut syncs = vec![];
         for _ in 0..swapchain.get_images().iter().len() {

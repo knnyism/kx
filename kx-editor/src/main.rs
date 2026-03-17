@@ -11,8 +11,8 @@ use winit::{
 };
 
 struct State {
-    window: Arc<Window>,
     graphics: Graphics,
+    window: Arc<Window>,
 }
 
 #[derive(Default)]
