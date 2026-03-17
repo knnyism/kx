@@ -1,6 +1,5 @@
 use anyhow::Result;
 use kx_engine::renderer::Graphics;
-use std::sync::Arc;
 use winit::{
     application::ApplicationHandler,
     dpi::LogicalSize,
@@ -9,15 +8,18 @@ use winit::{
     raw_window_handle::{HasDisplayHandle, HasWindowHandle},
     window::{Window, WindowId},
 };
-
-struct State {
-    graphics: Graphics,
-    window: Arc<Window>,
+struct App {
+    graphics: Option<Graphics>,
+    window: Option<Window>,
 }
 
-#[derive(Default)]
-struct App {
-    state: Option<State>,
+impl Default for App {
+    fn default() -> Self {
+        Self {
+            graphics: None,
+            window: None,
+        }
+    }
 }
 
 impl App {
@@ -28,25 +30,22 @@ impl App {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.state.is_none() {
-            let window_attributes = Window::default_attributes()
-                .with_title("kx-editor")
-                .with_inner_size(LogicalSize::new(1280, 720));
+        let window_attributes = Window::default_attributes()
+            .with_title("kx-editor")
+            .with_inner_size(LogicalSize::new(1280, 720));
 
-            let window = Arc::new(
-                event_loop
-                    .create_window(window_attributes)
-                    .expect("failed to create window"),
-            );
+        let window = event_loop
+            .create_window(window_attributes)
+            .expect("failed to create window");
 
-            let graphics = Graphics::new(
-                window.window_handle().unwrap(),
-                window.display_handle().unwrap(),
-            )
-            .expect("failed to create vulkan context");
+        let graphics = Graphics::new(
+            window.window_handle().unwrap(),
+            window.display_handle().unwrap(),
+        )
+        .expect("failed to create vulkan context");
 
-            self.state = Some(State { window, graphics });
-        }
+        self.graphics = Some(graphics);
+        self.window = Some(window);
     }
     fn window_event(
         &mut self,
