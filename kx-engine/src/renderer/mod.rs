@@ -39,7 +39,7 @@ impl Graphics {
         let instance = InstanceBuilder::new(Some((window_handle, display_handle)))
             .app_name("kx")
             .engine_name("kx-engine")
-            .request_validation_layers(true)
+            .request_validation_layers(cfg!(debug_assertions))
             .require_api_version(vk::API_VERSION_1_3)
             .use_default_debug_messenger()
             .build()?;
