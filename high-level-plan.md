@@ -1,6 +1,6 @@
 # shit i wanna do for now (this will later become a features list)
 
-- depth prepass
+- forward+
 - meshlet based renderer: 
     - fully gpu driven, drawing using indirect mesh tasks with count
     - hierarchical lod selection and culling for meshlets (frustum, backface, hi-z)
@@ -13,8 +13,8 @@
 ## week 1
 
 - initialize ash, gpu-allocator and egui
-- shader reflection (hassle-rs + rspirv-reflect?)
 - get A Fucking Triangle on the screen
+- shader reflection (hassle-rs + rspirv-reflect?)
 
 ## week 2
 

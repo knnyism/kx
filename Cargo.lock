@@ -874,7 +874,6 @@ dependencies = [
  "anyhow",
  "ash",
  "ash-bootstrap",
- "ash-window",
  "gpu-allocator",
  "raw-window-handle",
 ]
