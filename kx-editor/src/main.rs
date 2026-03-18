@@ -25,7 +25,11 @@ impl Default for App {
 impl App {
     fn resize(&mut self, _width: u32, _height: u32) {}
 
-    fn draw(&mut self) {}
+    fn draw(&mut self) {
+        if let Some(graphics) = &mut self.graphics {
+            graphics.draw().unwrap();
+        }
+    }
 }
 
 impl ApplicationHandler for App {
@@ -47,6 +51,13 @@ impl ApplicationHandler for App {
         self.graphics = Some(graphics);
         self.window = Some(window);
     }
+
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        if let Some(window) = &self.window {
+            window.request_redraw();
+        }
+    }
+
     fn window_event(
         &mut self,
         event_loop: &ActiveEventLoop,
