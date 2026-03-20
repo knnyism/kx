@@ -10,3 +10,6 @@ ash = { version = "0.38", features = ["linked"] }
 ash-bootstrap = "0.1"
 gpu-allocator = "0.28"
 raw-window-handle = "0.6"
+
+[build-dependencies]
+hassle-rs = "0.12"

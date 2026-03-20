@@ -35,7 +35,8 @@
         vulkan-headers
         vulkan-validation-layers
         vulkan-tools
-        shaderc
+
+        directx-shader-compiler
 
         wayland
         libxkbcommon
@@ -45,6 +46,7 @@
         pkgs.vulkan-loader
         pkgs.wayland
         pkgs.libxkbcommon
+        pkgs.directx-shader-compiler
       ];
 
       VULKAN_SDK = "${pkgs.vulkan-headers}";
