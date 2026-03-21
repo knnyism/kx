@@ -15,9 +15,20 @@ use ash_bootstrap::{
 };
 use raw_window_handle::{DisplayHandle, WindowHandle};
 
-pub struct QueueIndices {
+const FRAMES_IN_FLIGHT: usize = 3;
+
+struct QueueIndices {
     pub graphics: usize,
     pub present: usize,
+}
+
+struct Sync {
+    pub in_flight: vk::Fence,
+    pub image_available: vk::Semaphore,
+}
+
+pub struct Frame {
+    pub command_buffer: CommandBuffer,
 }
 
 pub struct Graphics {
@@ -29,18 +40,15 @@ pub struct Graphics {
     graphics_queue: vk::Queue,
     present_queue: vk::Queue,
 
-    in_flight_fences: Vec<vk::Fence>,
-    image_available_semaphores: Vec<vk::Semaphore>,
-    render_finished_semaphores: Vec<vk::Semaphore>,
-
     swapchain_images: Vec<vk::Image>,
     swapchain_image_views: Vec<vk::ImageView>,
+    swapchain_semaphores: Vec<vk::Semaphore>,
 
     command_pool: vk::CommandPool,
     command_buffers: Vec<CommandBuffer>,
 
+    frame_syncs: Vec<Sync>,
     frame_index: usize,
-    frames_in_flight: usize,
 
     allocator: Option<Allocator>,
 }
@@ -54,15 +62,14 @@ impl Drop for Graphics {
 
             self.device.destroy_command_pool(self.command_pool, None);
 
-            for i in 0..self.frames_in_flight {
-                self.device.destroy_fence(self.in_flight_fences[i], None);
-                self.device
-                    .destroy_semaphore(self.image_available_semaphores[i], None);
+            for sync in &self.frame_syncs {
+                self.device.destroy_fence(sync.in_flight, None);
+                self.device.destroy_semaphore(sync.image_available, None);
             }
 
-            for i in 0..self.render_finished_semaphores.len() {
+            for i in 0..self.swapchain_semaphores.len() {
                 self.device
-                    .destroy_semaphore(self.render_finished_semaphores[i], None);
+                    .destroy_semaphore(self.swapchain_semaphores[i], None);
             }
 
             let _ = self.swapchain.destroy_image_views();
@@ -116,8 +123,12 @@ impl Graphics {
 
         let swapchain_images = swapchain.get_images()?;
         let swapchain_image_views = swapchain.get_image_views()?;
-
-        const FRAMES_IN_FLIGHT: usize = 3;
+        let swapchain_semaphores = {
+            let semaphore_info = vk::SemaphoreCreateInfo::default();
+            (0..swapchain_images.len())
+                .map(|_| unsafe { device.create_semaphore(&semaphore_info, None) })
+                .collect::<Result<Vec<_>, _>>()?
+        };
 
         let command_pool = unsafe {
             let create_info = vk::CommandPoolCreateInfo::default()
@@ -125,30 +136,22 @@ impl Graphics {
             device.create_command_pool(&create_info, None)?
         };
 
+        let frame_syncs = (0..FRAMES_IN_FLIGHT)
+            .map(|_| unsafe {
+                Ok(Sync {
+                    in_flight: device.create_fence(
+                        &vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED),
+                        None,
+                    )?,
+                    image_available: device
+                        .create_semaphore(&vk::SemaphoreCreateInfo::default(), None)?,
+                })
+            })
+            .collect::<Result<Vec<_>, vk::Result>>()?;
+
         let command_buffers = {
             (0..FRAMES_IN_FLIGHT)
                 .map(|_| CommandBuffer::new(device.clone(), &command_pool))
-                .collect::<Result<Vec<_>, _>>()?
-        };
-
-        let in_flight_fences = {
-            let fence_info = vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED);
-            (0..FRAMES_IN_FLIGHT)
-                .map(|_| unsafe { device.create_fence(&fence_info, None) })
-                .collect::<Result<Vec<_>, _>>()?
-        };
-
-        let image_available_semaphores = {
-            let semaphore_info = vk::SemaphoreCreateInfo::default();
-            (0..FRAMES_IN_FLIGHT)
-                .map(|_| unsafe { device.create_semaphore(&semaphore_info, None) })
-                .collect::<Result<Vec<_>, _>>()?
-        };
-
-        let render_finished_semaphores = {
-            let semaphore_info = vk::SemaphoreCreateInfo::default();
-            (0..swapchain_images.len())
-                .map(|_| unsafe { device.create_semaphore(&semaphore_info, None) })
                 .collect::<Result<Vec<_>, _>>()?
         };
 
@@ -174,36 +177,32 @@ impl Graphics {
             graphics_queue,
             present_queue,
 
-            in_flight_fences,
-            image_available_semaphores,
-            render_finished_semaphores,
-
             swapchain_images,
             swapchain_image_views,
+            swapchain_semaphores,
 
             command_pool,
             command_buffers,
 
+            frame_syncs,
             frame_index: 0,
-            frames_in_flight: FRAMES_IN_FLIGHT,
 
             allocator,
         })
     }
 
     pub fn draw(&mut self) -> Result<()> {
-        let in_flight_fence = self.in_flight_fences[self.frame_index];
-        let image_available = self.image_available_semaphores[self.frame_index];
+        let sync = &self.frame_syncs[self.frame_index];
         let command_buffer = &self.command_buffers[self.frame_index];
 
         unsafe {
             self.device
-                .wait_for_fences(&[in_flight_fence], true, u64::MAX)?;
+                .wait_for_fences(&[sync.in_flight], true, u64::MAX)?;
 
             let (image_index, _suboptimal) = match self.swapchain.acquire_next_image(
                 *self.swapchain.as_ref(),
                 u64::MAX,
-                image_available,
+                sync.image_available,
                 vk::Fence::null(),
             ) {
                 Ok(result) => result,
@@ -211,7 +210,7 @@ impl Graphics {
                 Err(e) => return Err(e.into()),
             };
 
-            self.device.reset_fences(&[in_flight_fence])?;
+            self.device.reset_fences(&[sync.in_flight])?;
 
             let image = self.swapchain_images[image_index as usize];
 
@@ -234,12 +233,12 @@ impl Graphics {
                 vk::CommandBufferSubmitInfo::default().command_buffer(*command_buffer.as_ref());
 
             let wait_info = vk::SemaphoreSubmitInfo::default()
-                .semaphore(image_available)
+                .semaphore(sync.image_available)
                 .stage_mask(vk::PipelineStageFlags2::COLOR_ATTACHMENT_OUTPUT)
                 .value(1);
 
             let signal_info = vk::SemaphoreSubmitInfo::default()
-                .semaphore(self.render_finished_semaphores[image_index as usize])
+                .semaphore(self.swapchain_semaphores[image_index as usize])
                 .stage_mask(vk::PipelineStageFlags2::ALL_GRAPHICS)
                 .value(1);
 
@@ -249,9 +248,9 @@ impl Graphics {
                 .signal_semaphore_infos(std::slice::from_ref(&signal_info));
 
             self.device
-                .queue_submit2(self.graphics_queue, &[submit_info], in_flight_fence)?;
+                .queue_submit2(self.graphics_queue, &[submit_info], sync.in_flight)?;
 
-            let wait_semaphores = [self.render_finished_semaphores[image_index as usize]];
+            let wait_semaphores = [self.swapchain_semaphores[image_index as usize]];
             let swapchains = [*self.swapchain.as_ref()];
             let image_indices = [image_index];
 
@@ -264,13 +263,14 @@ impl Graphics {
                 .swapchain
                 .queue_present(self.present_queue, &present_info)
             {
-                Ok(_) => {}
+                Ok(is_suboptimal) if is_suboptimal => return Ok(()),
                 Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => return Ok(()),
                 Err(e) => return Err(e.into()),
+                _ => {}
             };
         };
 
-        self.frame_index = (self.frame_index + 1) % self.frames_in_flight;
+        self.frame_index = (self.frame_index + 1) % FRAMES_IN_FLIGHT;
         Ok(())
     }
 
