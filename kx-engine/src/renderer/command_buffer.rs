@@ -15,7 +15,7 @@ impl CommandBuffer {
             .command_pool(*command_pool)
             .command_buffer_count(1);
 
-        let command_buffer = unsafe { device.allocate_command_buffers(&allocate_info)? }[0];
+        let command_buffer = unsafe { device.allocate_command_buffers(&allocate_info) }?[0];
 
         Ok(Self {
             device,

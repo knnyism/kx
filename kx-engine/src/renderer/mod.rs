@@ -1,6 +1,9 @@
 pub mod command_buffer;
 use command_buffer::*;
 
+mod shader;
+use shader::*;
+
 use anyhow::Result;
 use gpu_allocator::vulkan::{Allocator, AllocatorCreateDesc};
 use std::sync::Arc;
@@ -31,6 +34,7 @@ pub struct Graphics {
     render_finished_semaphores: Vec<vk::Semaphore>,
 
     swapchain_images: Vec<vk::Image>,
+    swapchain_image_views: Vec<vk::ImageView>,
 
     command_pool: vk::CommandPool,
     command_buffers: Vec<CommandBuffer>,
@@ -61,6 +65,8 @@ impl Drop for Graphics {
                     .destroy_semaphore(self.render_finished_semaphores[i], None);
             }
 
+            let _ = self.swapchain.destroy_image_views();
+
             self.swapchain.destroy();
             self.device.destroy();
             self.instance.destroy();
@@ -78,6 +84,8 @@ impl Graphics {
             .use_default_debug_messenger()
             .build()?;
 
+        let features_12 = vk::PhysicalDeviceVulkan12Features::default().buffer_device_address(true);
+
         let features_13 = vk::PhysicalDeviceVulkan13Features::default()
             .synchronization2(true)
             .dynamic_rendering(true)
@@ -85,6 +93,7 @@ impl Graphics {
 
         let physical_device = PhysicalDeviceSelector::new(instance.clone())
             .preferred_device_type(PreferredDeviceType::Discrete)
+            .add_required_extension_feature(features_12)
             .add_required_extension_feature(features_13)
             .select()?;
 
@@ -106,6 +115,7 @@ impl Graphics {
             .build()?;
 
         let swapchain_images = swapchain.get_images()?;
+        let swapchain_image_views = swapchain.get_image_views()?;
 
         const FRAMES_IN_FLIGHT: usize = 3;
 
@@ -148,7 +158,7 @@ impl Graphics {
                 device: (*device).as_ref().clone(),
                 physical_device: *device.physical_device().as_ref(), // awful!
                 debug_settings: Default::default(),
-                buffer_device_address: false,
+                buffer_device_address: true,
                 allocation_sizes: Default::default(),
             };
 
@@ -169,6 +179,7 @@ impl Graphics {
             render_finished_semaphores,
 
             swapchain_images,
+            swapchain_image_views,
 
             command_pool,
             command_buffers,
@@ -261,5 +272,16 @@ impl Graphics {
 
         self.frame_index = (self.frame_index + 1) % self.frames_in_flight;
         Ok(())
+    }
+
+    pub fn create_shader_module(&self, spv: &[u8]) -> Result<vk::ShaderModule> {
+        let code: Vec<u32> = spv
+            .chunks_exact(4)
+            .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
+            .collect();
+
+        let create_info = vk::ShaderModuleCreateInfo::default().code(&code);
+
+        Ok(unsafe { self.device.create_shader_module(&create_info, None)? })
     }
 }
