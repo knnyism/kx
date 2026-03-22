@@ -8,6 +8,7 @@ use winit::{
     raw_window_handle::{HasDisplayHandle, HasWindowHandle},
     window::{Window, WindowId},
 };
+
 struct App {
     graphics: Option<Graphics>,
     window: Option<Window>,
