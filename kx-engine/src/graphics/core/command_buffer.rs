@@ -4,8 +4,6 @@ use std::sync::Arc;
 use ash::vk;
 use ash_bootstrap::Device;
 
-use super::Image;
-
 pub struct CommandBuffer {
     device: Arc<Device>,
     command_buffer: vk::CommandBuffer,
@@ -174,19 +172,14 @@ impl CommandBuffer {
 
     pub fn clear_color_image(
         &self,
-        image: &Image,
+        image: vk::Image,
         layout: vk::ImageLayout,
         value: vk::ClearColorValue,
         range: vk::ImageSubresourceRange,
     ) {
         unsafe {
-            self.device.cmd_clear_color_image(
-                self.command_buffer,
-                image.image,
-                layout,
-                &value,
-                &[range],
-            );
+            self.device
+                .cmd_clear_color_image(self.command_buffer, image, layout, &value, &[range]);
         };
     }
 }
