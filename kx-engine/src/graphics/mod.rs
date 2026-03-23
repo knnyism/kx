@@ -1,6 +1,9 @@
 pub mod core;
 use core::*;
 
+mod pass;
+use pass::*;
+
 use anyhow::Result;
 use std::sync::Arc;
 
@@ -49,6 +52,8 @@ pub struct Graphics {
     allocator: Allocator,
 
     draw_image: Image,
+
+    clear_pass: ClearPass,
 }
 
 impl Drop for Graphics {
@@ -183,6 +188,8 @@ impl Graphics {
                 | vk::ImageUsageFlags::COLOR_ATTACHMENT,
         )?;
 
+        let clear_pass = ClearPass::new(device.clone())?;
+
         Ok(Self {
             instance,
             device,
@@ -204,6 +211,8 @@ impl Graphics {
             allocator,
 
             draw_image,
+
+            clear_pass,
         })
     }
 
@@ -245,7 +254,7 @@ impl Graphics {
 
         command_buffer.transition_image(
             self.draw_image.image,
-            vk::ImageLayout::GENERAL,
+            vk::ImageLayout::UNDEFINED,
             vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
         );
 
@@ -317,38 +326,18 @@ impl Graphics {
         Ok(())
     }
 
-    fn clear_pass(&self) {
-        let command_buffer = &self.command_buffers[self.frame_index];
-
-        command_buffer.transition_image(
-            self.draw_image.image,
-            vk::ImageLayout::UNDEFINED,
-            vk::ImageLayout::GENERAL,
-        );
-
-        let mut clear_color = vk::ClearColorValue::default();
-        clear_color.float32 = [0.0, 0.0, 1.0, 1.0];
-
-        command_buffer.clear_color_image(
-            &self.draw_image,
-            vk::ImageLayout::GENERAL,
-            clear_color,
-            vk::ImageSubresourceRange::default()
-                .base_mip_level(0)
-                .level_count(1)
-                .base_array_layer(0)
-                .layer_count(1)
-                .aspect_mask(vk::ImageAspectFlags::COLOR),
-        );
-    }
-
     pub fn draw(&mut self) -> Result<()> {
         let (image_index, out_of_date) = self.begin_frame()?;
         if out_of_date {
             return Ok(());
         }
 
-        self.clear_pass();
+        let ctx = FrameContext {
+            cmd: &self.command_buffers[self.frame_index],
+            draw_image: &self.draw_image,
+        };
+
+        self.clear_pass.record(&ctx);
 
         self.end_frame(image_index)?;
 
