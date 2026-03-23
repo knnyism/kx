@@ -7,7 +7,7 @@ use gpu_allocator::{
     vulkan::{Allocation, AllocationCreateDesc, AllocationScheme, Allocator},
 };
 
-pub struct AllocatedImage {
+pub struct Image {
     pub image: vk::Image,
     pub view: vk::ImageView,
     pub extent: vk::Extent3D,
@@ -15,7 +15,7 @@ pub struct AllocatedImage {
     pub allocation: Option<Allocation>,
 }
 
-impl AllocatedImage {
+impl Image {
     pub fn new(
         device: &Device,
         allocator: &mut Allocator,
@@ -23,7 +23,7 @@ impl AllocatedImage {
         extent: vk::Extent3D,
         format: vk::Format,
         usage: vk::ImageUsageFlags,
-    ) -> Result<AllocatedImage> {
+    ) -> Result<Image> {
         let aspect_flag = if format == vk::Format::D32_SFLOAT {
             vk::ImageAspectFlags::DEPTH
         } else {
@@ -79,7 +79,7 @@ impl AllocatedImage {
             device.create_image_view(&create_info, None)?
         };
 
-        Ok(AllocatedImage {
+        Ok(Image {
             image,
             view,
             extent,
@@ -89,7 +89,7 @@ impl AllocatedImage {
     }
 }
 
-pub fn destroy_image(device: &Device, allocator: &mut Allocator, image: &mut AllocatedImage) {
+pub fn destroy_image(device: &Device, allocator: &mut Allocator, image: &mut Image) {
     unsafe {
         device.destroy_image(image.image, None);
         device.destroy_image_view(image.view, None);

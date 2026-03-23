@@ -1,5 +1,5 @@
 use anyhow::Result;
-use kx_engine::renderer::Graphics;
+use kx_engine::graphics::Graphics;
 use winit::{
     application::ApplicationHandler,
     dpi::LogicalSize,

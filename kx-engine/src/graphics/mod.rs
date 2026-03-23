@@ -1,11 +1,5 @@
-pub mod command_buffer;
-use command_buffer::*;
-
-mod shader;
-use shader::*;
-
-mod image;
-use image::*;
+pub mod core;
+use core::*;
 
 use anyhow::Result;
 use std::sync::Arc;
@@ -20,7 +14,7 @@ use raw_window_handle::{DisplayHandle, WindowHandle};
 
 const FRAMES_IN_FLIGHT: usize = 3;
 
-struct QueueIndices {
+struct QueueFamilyIndices {
     pub graphics: usize,
     pub present: usize,
 }
@@ -39,7 +33,7 @@ pub struct Graphics {
     device: Arc<Device>,
     swapchain: Swapchain,
 
-    queue_indices: QueueIndices,
+    queue_indices: QueueFamilyIndices,
     graphics_queue: vk::Queue,
     present_queue: vk::Queue,
 
@@ -54,8 +48,7 @@ pub struct Graphics {
 
     allocator: Allocator,
 
-    draw_image: AllocatedImage,
-    draw_extent: vk::Extent2D,
+    draw_image: Image,
 }
 
 impl Drop for Graphics {
@@ -114,7 +107,7 @@ impl Graphics {
         let (graphics_queue_index, graphics_queue) = device.get_queue(QueueType::Graphics)?;
         let (present_queue_index, present_queue) = device.get_queue(QueueType::Present)?;
 
-        let queue_indices = QueueIndices {
+        let queue_indices = QueueFamilyIndices {
             graphics: graphics_queue_index,
             present: present_queue_index,
         };
@@ -175,7 +168,7 @@ impl Graphics {
             Allocator::new(&create_desc)?
         };
 
-        let draw_image = AllocatedImage::new(
+        let draw_image = Image::new(
             &device,
             &mut allocator,
             "render_target",
@@ -211,133 +204,156 @@ impl Graphics {
             allocator,
 
             draw_image,
-            draw_extent: vk::Extent2D::default(),
         })
     }
 
-    pub fn draw(&mut self) -> Result<()> {
+    fn begin_frame(&self) -> Result<(u32, bool)> {
         let sync = &self.frame_syncs[self.frame_index];
         let command_buffer = &self.command_buffers[self.frame_index];
 
         unsafe {
             self.device
-                .wait_for_fences(&[sync.in_flight], true, u64::MAX)?;
-
-            let (image_index, _suboptimal) = match self.swapchain.acquire_next_image(
+                .wait_for_fences(&[sync.in_flight], true, u64::MAX)?
+        };
+        let (image_index, _suboptimal) = match unsafe {
+            self.swapchain.acquire_next_image(
                 *self.swapchain.as_ref(),
                 u64::MAX,
                 sync.image_available,
                 vk::Fence::null(),
-            ) {
-                Ok(result) => result,
-                Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => return Ok(()),
-                Err(e) => return Err(e.into()),
-            };
+            )
+        } {
+            Ok(result) => result,
+            Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => return Ok((0, true)),
+            Err(e) => return Err(e.into()),
+        };
+        unsafe { self.device.reset_fences(&[sync.in_flight])? };
+        command_buffer.reset(vk::CommandBufferResetFlags::empty());
 
-            self.device.reset_fences(&[sync.in_flight])?;
+        command_buffer.begin(
+            &vk::CommandBufferBeginInfo::default()
+                .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT),
+        );
 
-            command_buffer.reset(vk::CommandBufferResetFlags::empty());
+        Ok((image_index, false))
+    }
 
-            command_buffer.begin(
-                &vk::CommandBufferBeginInfo::default()
-                    .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT),
-            );
+    fn end_frame(&self, image_index: u32) -> Result<()> {
+        let sync = &self.frame_syncs[self.frame_index];
+        let command_buffer = &self.command_buffers[self.frame_index];
+        let swapchain_image = self.swapchain_images[image_index as usize];
 
-            self.draw_extent.width = self.draw_image.extent.width;
-            self.draw_extent.height = self.draw_image.extent.height;
+        command_buffer.transition_image(
+            self.draw_image.image,
+            vk::ImageLayout::GENERAL,
+            vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+        );
 
-            command_buffer.transition_image(
-                self.draw_image.image,
-                vk::ImageLayout::UNDEFINED,
-                vk::ImageLayout::GENERAL,
-            );
+        command_buffer.transition_image(
+            swapchain_image,
+            vk::ImageLayout::UNDEFINED,
+            vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+        );
 
-            let mut clear_color = vk::ClearColorValue::default();
-            clear_color.float32 = [0.0, 0.0, 1.0, 1.0];
+        command_buffer.copy_image_to_image(
+            self.draw_image.image,
+            swapchain_image,
+            vk::Extent2D::default()
+                .width(self.draw_image.extent.width)
+                .height(self.draw_image.extent.height),
+            self.swapchain.extent,
+        );
 
-            command_buffer.clear_color_image(
-                &self.draw_image,
-                vk::ImageLayout::GENERAL,
-                clear_color,
-                vk::ImageSubresourceRange::default()
-                    .base_mip_level(0)
-                    .level_count(1)
-                    .base_array_layer(0)
-                    .layer_count(1)
-                    .aspect_mask(vk::ImageAspectFlags::COLOR),
-            );
+        command_buffer.transition_image(
+            swapchain_image,
+            vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            vk::ImageLayout::PRESENT_SRC_KHR,
+        );
 
-            command_buffer.transition_image(
-                self.draw_image.image,
-                vk::ImageLayout::GENERAL,
-                vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
-            );
+        command_buffer.end();
 
-            let swapchain_image = self.swapchain_images[image_index as usize];
+        let cmd_info =
+            vk::CommandBufferSubmitInfo::default().command_buffer(*command_buffer.as_ref());
 
-            command_buffer.transition_image(
-                swapchain_image,
-                vk::ImageLayout::UNDEFINED,
-                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
-            );
+        let wait_info = vk::SemaphoreSubmitInfo::default()
+            .semaphore(sync.image_available)
+            .stage_mask(vk::PipelineStageFlags2::COLOR_ATTACHMENT_OUTPUT)
+            .value(1);
 
-            command_buffer.copy_image_to_image(
-                self.draw_image.image,
-                swapchain_image,
-                self.draw_extent,
-                self.swapchain.extent,
-            );
+        let signal_info = vk::SemaphoreSubmitInfo::default()
+            .semaphore(self.swapchain_semaphores[image_index as usize])
+            .stage_mask(vk::PipelineStageFlags2::ALL_GRAPHICS)
+            .value(1);
 
-            command_buffer.transition_image(
-                swapchain_image,
-                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
-                vk::ImageLayout::PRESENT_SRC_KHR,
-            );
+        let submit_info = vk::SubmitInfo2::default()
+            .command_buffer_infos(std::slice::from_ref(&cmd_info))
+            .wait_semaphore_infos(std::slice::from_ref(&wait_info))
+            .signal_semaphore_infos(std::slice::from_ref(&signal_info));
 
-            command_buffer.end();
-
-            let cmd_info =
-                vk::CommandBufferSubmitInfo::default().command_buffer(*command_buffer.as_ref());
-
-            let wait_info = vk::SemaphoreSubmitInfo::default()
-                .semaphore(sync.image_available)
-                .stage_mask(vk::PipelineStageFlags2::COLOR_ATTACHMENT_OUTPUT)
-                .value(1);
-
-            let signal_info = vk::SemaphoreSubmitInfo::default()
-                .semaphore(self.swapchain_semaphores[image_index as usize])
-                .stage_mask(vk::PipelineStageFlags2::ALL_GRAPHICS)
-                .value(1);
-
-            let submit_info = vk::SubmitInfo2::default()
-                .command_buffer_infos(std::slice::from_ref(&cmd_info))
-                .wait_semaphore_infos(std::slice::from_ref(&wait_info))
-                .signal_semaphore_infos(std::slice::from_ref(&signal_info));
-
+        unsafe {
             self.device
-                .queue_submit2(self.graphics_queue, &[submit_info], sync.in_flight)?;
-
-            let wait_semaphores = [self.swapchain_semaphores[image_index as usize]];
-            let swapchains = [*self.swapchain.as_ref()];
-            let image_indices = [image_index];
-
-            let present_info = vk::PresentInfoKHR::default()
-                .wait_semaphores(&wait_semaphores)
-                .swapchains(&swapchains)
-                .image_indices(&image_indices);
-
-            match self
-                .swapchain
-                .queue_present(self.present_queue, &present_info)
-            {
-                Ok(is_suboptimal) if is_suboptimal => return Ok(()),
-                Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => return Ok(()),
-                Err(e) => return Err(e.into()),
-                _ => {}
-            };
+                .queue_submit2(self.graphics_queue, &[submit_info], sync.in_flight)?
         };
 
+        let wait_semaphores = [self.swapchain_semaphores[image_index as usize]];
+        let swapchains = [*self.swapchain.as_ref()];
+        let image_indices = [image_index];
+
+        let present_info = vk::PresentInfoKHR::default()
+            .wait_semaphores(&wait_semaphores)
+            .swapchains(&swapchains)
+            .image_indices(&image_indices);
+
+        match unsafe {
+            self.swapchain
+                .queue_present(self.present_queue, &present_info)
+        } {
+            Ok(is_suboptimal) if is_suboptimal => return Ok(()),
+            Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => return Ok(()),
+            Err(e) => return Err(e.into()),
+            _ => {}
+        };
+
+        Ok(())
+    }
+
+    fn clear_pass(&self) {
+        let command_buffer = &self.command_buffers[self.frame_index];
+
+        command_buffer.transition_image(
+            self.draw_image.image,
+            vk::ImageLayout::UNDEFINED,
+            vk::ImageLayout::GENERAL,
+        );
+
+        let mut clear_color = vk::ClearColorValue::default();
+        clear_color.float32 = [0.0, 0.0, 1.0, 1.0];
+
+        command_buffer.clear_color_image(
+            &self.draw_image,
+            vk::ImageLayout::GENERAL,
+            clear_color,
+            vk::ImageSubresourceRange::default()
+                .base_mip_level(0)
+                .level_count(1)
+                .base_array_layer(0)
+                .layer_count(1)
+                .aspect_mask(vk::ImageAspectFlags::COLOR),
+        );
+    }
+
+    pub fn draw(&mut self) -> Result<()> {
+        let (image_index, out_of_date) = self.begin_frame()?;
+        if out_of_date {
+            return Ok(());
+        }
+
+        self.clear_pass();
+
+        self.end_frame(image_index)?;
+
         self.frame_index = (self.frame_index + 1) % FRAMES_IN_FLIGHT;
+
         Ok(())
     }
 
