@@ -6,3 +6,6 @@ pub use shader::*;
 
 pub mod image;
 pub use image::*;
+
+pub mod pipeline;
+pub use pipeline::*;
