@@ -13,3 +13,4 @@ raw-window-handle = "0.6"
 
 [build-dependencies]
 hassle-rs = "0.12"
+rspirv-reflect = "0.9"
