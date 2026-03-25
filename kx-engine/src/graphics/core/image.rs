@@ -1,7 +1,6 @@
 use anyhow::Result;
 
 use ash::vk;
-use ash_bootstrap::Device;
 use gpu_allocator::{
     MemoryLocation,
     vulkan::{Allocation, AllocationCreateDesc, AllocationScheme, Allocator},
@@ -17,7 +16,7 @@ pub struct Image {
 
 impl Image {
     pub fn new(
-        device: &Device,
+        device: &ash::Device,
         allocator: &mut Allocator,
         name: &str,
         extent: vk::Extent3D,
@@ -88,7 +87,7 @@ impl Image {
         })
     }
 
-    pub fn destroy(&mut self, device: &Device, allocator: &mut Allocator) {
+    pub fn destroy(&mut self, device: &ash::Device, allocator: &mut Allocator) {
         unsafe {
             device.destroy_image(self.image, None);
             device.destroy_image_view(self.view, None);

@@ -1,8 +1,6 @@
 use anyhow::Result;
-use std::sync::Arc;
 
 use ash::vk;
-use ash_bootstrap::Device;
 
 use super::{FrameContext, Pass};
 use crate::graphics::Pipeline;
@@ -12,7 +10,7 @@ pub struct ClearPass {
 }
 
 impl ClearPass {
-    pub fn new(device: &Device) -> Result<Self> {
+    pub fn new(device: &ash::Device) -> Result<Self> {
         let pipeline = Pipeline::builder()
             .shader(
                 include_bytes!(concat!(env!("OUT_DIR"), "/clear.cs.spv")),
@@ -23,7 +21,7 @@ impl ClearPass {
         Ok(Self { pipeline })
     }
 
-    pub fn destroy(&self, device: &Device) {
+    pub fn destroy(&self, device: &ash::Device) {
         self.pipeline.destroy(device);
     }
 }

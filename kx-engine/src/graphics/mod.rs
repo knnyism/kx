@@ -5,22 +5,17 @@ mod pass;
 use pass::*;
 
 use anyhow::Result;
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 
 use ash::vk;
 use ash_bootstrap::{
-    Device, DeviceBuilder, Instance, InstanceBuilder, PhysicalDeviceSelector, PreferredDeviceType,
-    QueueType, Swapchain, SwapchainBuilder,
+    DeviceBuilder, InstanceBuilder, PhysicalDeviceSelector, PreferredDeviceType, QueueType,
+    Swapchain, SwapchainBuilder,
 };
 use gpu_allocator::vulkan::{Allocator, AllocatorCreateDesc};
 use raw_window_handle::{DisplayHandle, WindowHandle};
 
 const FRAMES_IN_FLIGHT: usize = 3;
-
-struct QueueFamilyIndices {
-    pub graphics: usize,
-    pub present: usize,
-}
 
 struct Sync {
     pub in_flight: vk::Fence,
@@ -32,12 +27,12 @@ pub struct Frame {
 }
 
 pub struct Graphics {
-    instance: Arc<Instance>,
-    device: Arc<Device>,
+    instance: Arc<ash_bootstrap::Instance>,
+    device: Arc<ash_bootstrap::Device>,
+
     swapchain: Swapchain,
     allocator: Allocator,
 
-    queue_indices: QueueFamilyIndices,
     graphics_queue: vk::Queue,
     present_queue: vk::Queue,
 
@@ -87,6 +82,13 @@ impl Drop for Graphics {
 
 impl Graphics {
     pub fn new(window_handle: WindowHandle, display_handle: DisplayHandle) -> Result<Self> {
+        let features_12 = vk::PhysicalDeviceVulkan12Features::default().buffer_device_address(true);
+
+        let features_13 = vk::PhysicalDeviceVulkan13Features::default()
+            .synchronization2(true)
+            .dynamic_rendering(true)
+            .maintenance4(true);
+
         let instance = InstanceBuilder::new(Some((window_handle, display_handle)))
             .app_name("kx")
             .engine_name("kx-engine")
@@ -94,13 +96,6 @@ impl Graphics {
             .require_api_version(vk::API_VERSION_1_3)
             .use_default_debug_messenger()
             .build()?;
-
-        let features_12 = vk::PhysicalDeviceVulkan12Features::default().buffer_device_address(true);
-
-        let features_13 = vk::PhysicalDeviceVulkan13Features::default()
-            .synchronization2(true)
-            .dynamic_rendering(true)
-            .maintenance4(true);
 
         let physical_device = PhysicalDeviceSelector::new(instance.clone())
             .preferred_device_type(PreferredDeviceType::Discrete)
@@ -110,13 +105,8 @@ impl Graphics {
 
         let device = Arc::new(DeviceBuilder::new(physical_device, instance.clone()).build()?);
 
-        let (graphics_queue_index, graphics_queue) = device.get_queue(QueueType::Graphics)?;
-        let (present_queue_index, present_queue) = device.get_queue(QueueType::Present)?;
-
-        let queue_indices = QueueFamilyIndices {
-            graphics: graphics_queue_index,
-            present: present_queue_index,
-        };
+        let (_, graphics_queue) = device.get_queue(QueueType::Graphics)?;
+        let (_, present_queue) = device.get_queue(QueueType::Present)?;
 
         let swapchain_builder = SwapchainBuilder::new(instance.clone(), device.clone());
 
@@ -155,17 +145,21 @@ impl Graphics {
             })
             .collect::<Result<Vec<_>, vk::Result>>()?;
 
+        let ash_device = device.deref().as_ref().clone();
+        let ash_instance = instance.deref().as_ref().clone();
+        let vk_physical_device = device.physical_device().as_ref().clone();
+
         let command_buffers = {
             (0..FRAMES_IN_FLIGHT)
-                .map(|_| CommandBuffer::new(device.clone(), &command_pool))
+                .map(|_| CommandBuffer::new(ash_device.clone(), &command_pool))
                 .collect::<Result<Vec<_>, _>>()?
         };
 
         let mut allocator = {
             let create_desc = AllocatorCreateDesc {
-                instance: (*instance).as_ref().clone(),
-                device: (*device).as_ref().clone(),
-                physical_device: *device.physical_device().as_ref(), // awful!
+                instance: ash_instance.clone(),
+                device: ash_device.clone(),
+                physical_device: vk_physical_device.clone(), // awful!
                 debug_settings: Default::default(),
                 buffer_device_address: true,
                 allocation_sizes: Default::default(),
@@ -197,7 +191,6 @@ impl Graphics {
             swapchain,
             allocator,
 
-            queue_indices,
             graphics_queue,
             present_queue,
 

@@ -1,16 +1,14 @@
 use anyhow::Result;
-use std::sync::Arc;
 
 use ash::vk;
-use ash_bootstrap::Device;
 
 pub struct CommandBuffer {
-    device: Arc<Device>,
+    device: ash::Device,
     command_buffer: vk::CommandBuffer,
 }
 
 impl CommandBuffer {
-    pub fn new(device: Arc<Device>, command_pool: &vk::CommandPool) -> Result<Self> {
+    pub fn new(device: ash::Device, command_pool: &vk::CommandPool) -> Result<Self> {
         let allocate_info = vk::CommandBufferAllocateInfo::default()
             .command_pool(*command_pool)
             .command_buffer_count(1);

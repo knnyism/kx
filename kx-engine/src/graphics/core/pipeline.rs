@@ -1,8 +1,7 @@
 use anyhow::{Result, bail};
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
 
 use ash::vk;
-use ash_bootstrap::Device;
 
 use super::ShaderMeta;
 
@@ -17,7 +16,7 @@ impl Pipeline {
         PipelineBuilder::default()
     }
 
-    pub fn destroy(&self, device: &Device) {
+    pub fn destroy(&self, device: &ash::Device) {
         unsafe {
             device.destroy_pipeline(self.pipeline, None);
             device.destroy_pipeline_layout(self.layout, None);
@@ -62,7 +61,7 @@ impl Default for PipelineBuilder {
 impl PipelineBuilder {
     fn build_compute(
         &self,
-        device: &Device,
+        device: &ash::Device,
         stage: &(Vec<u8>, ShaderMeta),
         layout: vk::PipelineLayout,
     ) -> Result<vk::Pipeline> {
@@ -89,7 +88,7 @@ impl PipelineBuilder {
         Ok(pipeline)
     }
 
-    pub fn build(self, device: &Device) -> Result<Pipeline> {
+    pub fn build(self, device: &ash::Device) -> Result<Pipeline> {
         if self.stages.is_empty() {
             bail!("no stages specified");
         }
@@ -158,7 +157,7 @@ impl PipelineBuilder {
 
     fn create_layout(
         &self,
-        device: &Device,
+        device: &ash::Device,
     ) -> Result<(Vec<vk::DescriptorSetLayout>, vk::PipelineLayout)> {
         let mut merged: BTreeMap<(u32, u32), (vk::DescriptorType, u32, vk::ShaderStageFlags)> =
             BTreeMap::new();
@@ -219,7 +218,7 @@ impl PipelineBuilder {
         Ok((descriptor_set_layouts, layout))
     }
 
-    fn create_shader_module(&self, device: &Device, spv: &[u8]) -> Result<vk::ShaderModule> {
+    fn create_shader_module(&self, device: &ash::Device, spv: &[u8]) -> Result<vk::ShaderModule> {
         let code: Vec<u32> = spv
             .chunks_exact(4)
             .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
