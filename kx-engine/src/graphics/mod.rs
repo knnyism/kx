@@ -35,6 +35,7 @@ pub struct Graphics {
     instance: Arc<Instance>,
     device: Arc<Device>,
     swapchain: Swapchain,
+    allocator: Allocator,
 
     queue_indices: QueueFamilyIndices,
     graphics_queue: vk::Queue,
@@ -48,8 +49,6 @@ pub struct Graphics {
 
     frame_syncs: Vec<Sync>,
     frame_index: usize,
-
-    allocator: Allocator,
 
     draw_image: Image,
 
@@ -73,7 +72,9 @@ impl Drop for Graphics {
                     .destroy_semaphore(self.swapchain_semaphores[i], None);
             }
 
-            destroy_image(&self.device, &mut self.allocator, &mut self.draw_image);
+            self.clear_pass.destroy(&self.device);
+
+            self.draw_image.destroy(&self.device, &mut self.allocator);
 
             let _ = self.swapchain.destroy_image_views();
 
@@ -188,12 +189,13 @@ impl Graphics {
                 | vk::ImageUsageFlags::COLOR_ATTACHMENT,
         )?;
 
-        let clear_pass = ClearPass::new(device.clone())?;
+        let clear_pass = ClearPass::new(&device)?;
 
         Ok(Self {
             instance,
             device,
             swapchain,
+            allocator,
 
             queue_indices,
             graphics_queue,
@@ -207,8 +209,6 @@ impl Graphics {
 
             frame_syncs,
             frame_index: 0,
-
-            allocator,
 
             draw_image,
 
@@ -344,16 +344,5 @@ impl Graphics {
         self.frame_index = (self.frame_index + 1) % FRAMES_IN_FLIGHT;
 
         Ok(())
-    }
-
-    pub fn create_shader_module(&self, spv: &[u8]) -> Result<vk::ShaderModule> {
-        let code: Vec<u32> = spv
-            .chunks_exact(4)
-            .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
-            .collect();
-
-        let create_info = vk::ShaderModuleCreateInfo::default().code(&code);
-
-        Ok(unsafe { self.device.create_shader_module(&create_info, None)? })
     }
 }

@@ -1,4 +1,5 @@
 [[vk::binding(0, 0)]]
+[[vk::image_format("rgba16f")]]
 RWTexture2D<float4> output_image;
 
 [numthreads(16, 16, 1)]

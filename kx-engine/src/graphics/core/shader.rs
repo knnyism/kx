@@ -1,8 +1,5 @@
 use ash::vk;
 
-pub const CLEAR_SPV: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/clear.cs.spv"));
-pub const CLEAR_META: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/clear.cs.meta"));
-
 #[derive(Debug, Clone)]
 pub struct BindingInfo {
     pub set: u32,

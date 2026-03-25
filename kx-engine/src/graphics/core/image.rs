@@ -87,12 +87,12 @@ impl Image {
             allocation: Some(allocation),
         })
     }
-}
 
-pub fn destroy_image(device: &Device, allocator: &mut Allocator, image: &mut Image) {
-    unsafe {
-        device.destroy_image(image.image, None);
-        device.destroy_image_view(image.view, None);
+    pub fn destroy(&mut self, device: &Device, allocator: &mut Allocator) {
+        unsafe {
+            device.destroy_image(self.image, None);
+            device.destroy_image_view(self.view, None);
+        }
+        allocator.free(self.allocation.take().unwrap()).unwrap();
     }
-    allocator.free(image.allocation.take().unwrap()).unwrap();
 }

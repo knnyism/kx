@@ -134,7 +134,7 @@ fn main() {
         &compiler,
         &library,
         &out_dir,
-        &shader_dir.join("clear.hlsl"),
+        &shader_dir.join("clear.cs.hlsl"),
         "main",
         "cs_6_0",
         "clear.cs",

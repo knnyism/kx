@@ -5,14 +5,26 @@ use ash::vk;
 use ash_bootstrap::Device;
 
 use super::{FrameContext, Pass};
+use crate::graphics::Pipeline;
 
 pub struct ClearPass {
-    device: Arc<Device>,
+    pipeline: Pipeline,
 }
 
 impl ClearPass {
-    pub fn new(device: Arc<Device>) -> Result<Self> {
-        Ok(Self { device })
+    pub fn new(device: &Device) -> Result<Self> {
+        let pipeline = Pipeline::builder()
+            .shader(
+                include_bytes!(concat!(env!("OUT_DIR"), "/clear.cs.spv")),
+                include_bytes!(concat!(env!("OUT_DIR"), "/clear.cs.meta")),
+            )
+            .build(device)?;
+
+        Ok(Self { pipeline })
+    }
+
+    pub fn destroy(&self, device: &Device) {
+        self.pipeline.destroy(device);
     }
 }
 

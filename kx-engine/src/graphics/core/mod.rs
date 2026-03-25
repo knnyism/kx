@@ -9,3 +9,6 @@ pub use image::*;
 
 pub mod pipeline;
 pub use pipeline::*;
+
+pub mod descriptor;
+pub use descriptor::*;
