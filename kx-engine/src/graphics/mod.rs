@@ -42,6 +42,8 @@ pub struct Graphics {
     command_pool: vk::CommandPool,
     command_buffers: Vec<CommandBuffer>,
 
+    descriptor_allocators: Vec<DescriptorAllocator>,
+
     frame_syncs: Vec<Sync>,
     frame_index: usize,
 
@@ -68,6 +70,10 @@ impl Drop for Graphics {
             }
 
             self.clear_pass.destroy(&self.device);
+
+            for descriptor_allocator in &mut self.descriptor_allocators {
+                descriptor_allocator.destroy(&self.device);
+            }
 
             self.draw_image.destroy(&self.device, &mut self.allocator);
 
@@ -116,6 +122,7 @@ impl Graphics {
             .image_usage_flags(
                 vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::TRANSFER_DST,
             )
+            .desired_size(vk::Extent2D::default().width(1024).height(768)) // TODO: LOL!
             .build()?;
 
         let swapchain_images = swapchain.get_images()?;
@@ -168,6 +175,25 @@ impl Graphics {
             Allocator::new(&create_desc)?
         };
 
+        let ratios = vec![
+            PoolSizeRatio {
+                descriptor_type: vk::DescriptorType::STORAGE_IMAGE,
+                ratio: 1.0,
+            },
+            PoolSizeRatio {
+                descriptor_type: vk::DescriptorType::UNIFORM_BUFFER,
+                ratio: 1.0,
+            },
+            PoolSizeRatio {
+                descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+                ratio: 1.0,
+            },
+        ];
+
+        let descriptor_allocators = (0..FRAMES_IN_FLIGHT)
+            .map(|_| DescriptorAllocator::new(&device, 10, ratios.clone()))
+            .collect::<Vec<_>>();
+
         let draw_image = Image::new(
             &device,
             &mut allocator,
@@ -200,6 +226,8 @@ impl Graphics {
             command_pool,
             command_buffers,
 
+            descriptor_allocators,
+
             frame_syncs,
             frame_index: 0,
 
@@ -209,7 +237,7 @@ impl Graphics {
         })
     }
 
-    fn begin_frame(&self) -> Result<(u32, bool)> {
+    fn begin_frame(&mut self) -> Result<(u32, bool)> {
         let sync = &self.frame_syncs[self.frame_index];
         let command_buffer = &self.command_buffers[self.frame_index];
 
@@ -236,6 +264,8 @@ impl Graphics {
             &vk::CommandBufferBeginInfo::default()
                 .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT),
         );
+
+        self.descriptor_allocators[self.frame_index].clear_pools(&self.device);
 
         Ok((image_index, false))
     }
@@ -325,12 +355,14 @@ impl Graphics {
             return Ok(());
         }
 
-        let ctx = FrameContext {
+        let mut ctx = FrameContext {
+            device: &self.device,
             cmd: &self.command_buffers[self.frame_index],
             draw_image: &self.draw_image,
+            descriptor_allocator: &mut self.descriptor_allocators[self.frame_index],
         };
 
-        self.clear_pass.record(&ctx);
+        self.clear_pass.record(&mut ctx);
 
         self.end_frame(image_index)?;
 
