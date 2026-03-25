@@ -29,19 +29,17 @@ impl ClearPass {
 impl Pass for ClearPass {
     fn record(&self, ctx: &mut FrameContext) {
         ctx.cmd.transition_image(
-            ctx.draw_image.image,
+            ctx.rt.image,
             vk::ImageLayout::UNDEFINED,
             vk::ImageLayout::GENERAL,
         );
 
-        let set = ctx
-            .descriptor_allocator
-            .allocate(ctx.device, self.pipeline.descriptor_set_layouts[0]);
+        let set = ctx.dsa.allocate(ctx.device, self.pipeline.set_layouts[0]);
 
         DescriptorWriter::default()
             .write_image(
                 0,
-                ctx.draw_image.view,
+                ctx.rt.view,
                 vk::Sampler::null(),
                 vk::ImageLayout::GENERAL,
                 vk::DescriptorType::STORAGE_IMAGE,
@@ -59,8 +57,8 @@ impl Pass for ClearPass {
             &[set],
         );
 
-        let width = ctx.draw_image.extent.width;
-        let height = ctx.draw_image.extent.height;
+        let width = ctx.rt.extent.width;
+        let height = ctx.rt.extent.height;
 
         ctx.cmd.dispatch((width + 15) / 16, (height + 15) / 16, 1);
     }

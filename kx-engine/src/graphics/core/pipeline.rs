@@ -8,7 +8,7 @@ use super::ShaderMeta;
 pub struct Pipeline {
     pub pipeline: vk::Pipeline,
     pub layout: vk::PipelineLayout,
-    pub descriptor_set_layouts: Vec<vk::DescriptorSetLayout>,
+    pub set_layouts: Vec<vk::DescriptorSetLayout>,
 }
 
 impl Pipeline {
@@ -20,7 +20,7 @@ impl Pipeline {
         unsafe {
             device.destroy_pipeline(self.pipeline, None);
             device.destroy_pipeline_layout(self.layout, None);
-            for &descriptor_set_layout in &self.descriptor_set_layouts {
+            for &descriptor_set_layout in &self.set_layouts {
                 device.destroy_descriptor_set_layout(descriptor_set_layout, None);
             }
         }
@@ -100,7 +100,7 @@ impl PipelineBuilder {
         Ok(Pipeline {
             pipeline,
             layout,
-            descriptor_set_layouts: descriptor_set_layouts,
+            set_layouts: descriptor_set_layouts,
         })
     }
 

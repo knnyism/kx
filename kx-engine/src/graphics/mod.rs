@@ -358,8 +358,8 @@ impl Graphics {
         let mut ctx = FrameContext {
             device: &self.device,
             cmd: &self.command_buffers[self.frame_index],
-            draw_image: &self.draw_image,
-            descriptor_allocator: &mut self.descriptor_allocators[self.frame_index],
+            rt: &self.draw_image,
+            dsa: &mut self.descriptor_allocators[self.frame_index],
         };
 
         self.clear_pass.record(&mut ctx);

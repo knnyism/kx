@@ -6,8 +6,8 @@ use super::{CommandBuffer, DescriptorAllocator, Image};
 pub struct FrameContext<'a> {
     pub device: &'a ash::Device,
     pub cmd: &'a CommandBuffer,
-    pub draw_image: &'a Image,
-    pub descriptor_allocator: &'a mut DescriptorAllocator,
+    pub rt: &'a Image,
+    pub dsa: &'a mut DescriptorAllocator,
 }
 
 pub trait Pass {
