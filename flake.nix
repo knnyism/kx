@@ -37,6 +37,8 @@
         vulkan-tools
 
         directx-shader-compiler
+        clang-tools
+        shader-slang
 
         wayland
         libxkbcommon
