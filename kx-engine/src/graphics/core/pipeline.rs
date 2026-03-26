@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 use std::collections::BTreeMap;
 
 use ash::vk;
@@ -113,7 +113,7 @@ impl ComputePipelineBuilder {
         }
     }
 
-    pub fn shader(mut self, spv: &[u8], meta: &[u8]) -> Self {
+    pub fn set_stage(mut self, spv: &[u8], meta: &[u8]) -> Self {
         self.stage = ShaderStage {
             spv: spv.to_vec(),
             meta: ShaderMeta::deserialize(meta),
@@ -168,6 +168,219 @@ pub struct GraphicsPipelineBuilder {
     depth_test: bool,
     depth_write: bool,
     depth_compare_op: vk::CompareOp,
+
+    blending: BlendMode,
 }
 
-impl GraphicsPipelineBuilder {}
+enum BlendMode {
+    None,
+    Alpha,
+}
+
+impl GraphicsPipelineBuilder {
+    pub fn new() -> Self {
+        Self {
+            stages: Vec::default(),
+
+            topology: vk::PrimitiveTopology::default(),
+            polygon_mode: vk::PolygonMode::default(),
+            cull_mode: vk::CullModeFlags::default(),
+            front_face: vk::FrontFace::default(),
+
+            color_formats: Vec::default(),
+            depth_format: None,
+
+            depth_test: bool::default(),
+            depth_write: bool::default(),
+            depth_compare_op: vk::CompareOp::default(),
+
+            blending: BlendMode::None,
+        }
+    }
+
+    pub fn add_stage(mut self, spv: &[u8], meta: &[u8]) -> Self {
+        self.stages.push(ShaderStage {
+            spv: spv.to_vec(),
+            meta: ShaderMeta::deserialize(meta),
+        });
+
+        self
+    }
+
+    pub fn set_topology(mut self, topology: vk::PrimitiveTopology) -> Self {
+        self.topology = topology;
+
+        self
+    }
+
+    pub fn set_polygon_mode(mut self, mode: vk::PolygonMode) -> Self {
+        self.polygon_mode = mode;
+
+        self
+    }
+
+    pub fn set_cull_mode(
+        mut self,
+        cull_mode: vk::CullModeFlags,
+        front_face: vk::FrontFace,
+    ) -> Self {
+        self.cull_mode = cull_mode;
+        self.front_face = front_face;
+
+        self
+    }
+
+    pub fn color_format(mut self, format: vk::Format) -> Self {
+        self.color_formats.push(format);
+
+        self
+    }
+
+    pub fn depth_format(mut self, format: vk::Format) -> Self {
+        self.depth_format = Some(format);
+
+        self
+    }
+
+    pub fn disable_depth_test(mut self) -> Self {
+        self.depth_test = false;
+        self.depth_write = false;
+        self.depth_compare_op = vk::CompareOp::NEVER;
+
+        self
+    }
+    pub fn enable_depth_test(mut self, write: bool, compare_op: vk::CompareOp) -> Self {
+        self.depth_test = true;
+        self.depth_write = write;
+        self.depth_compare_op = compare_op;
+
+        self
+    }
+
+    pub fn enable_blending_alpha(mut self) -> Self {
+        self.blending = BlendMode::Alpha;
+
+        self
+    }
+
+    pub fn build(self, device: &ash::Device) -> Result<Pipeline> {
+        if self.stages.is_empty() {
+            bail!("no stages specified");
+        }
+
+        let (set_layouts, layout) = create_layouts(device, &self.stages)?;
+
+        let mut modules = Vec::new();
+        let mut stage_infos = Vec::new();
+
+        for stage in &self.stages {
+            let module = create_shader_module(device, &stage.spv)?;
+            modules.push(module);
+            stage_infos.push(
+                vk::PipelineShaderStageCreateInfo::default()
+                    .stage(stage.meta.stage)
+                    .module(module)
+                    .name(c"main"),
+            );
+        }
+
+        let has_vertex = self
+            .stages
+            .iter()
+            .any(|stage| stage.meta.stage == vk::ShaderStageFlags::VERTEX);
+
+        let vertex_input = vk::PipelineVertexInputStateCreateInfo::default();
+        let input_assembly =
+            vk::PipelineInputAssemblyStateCreateInfo::default().topology(self.topology);
+
+        let rasterization = vk::PipelineRasterizationStateCreateInfo::default()
+            .polygon_mode(self.polygon_mode)
+            .cull_mode(self.cull_mode)
+            .front_face(self.front_face)
+            .line_width(1.0);
+
+        let multisample = vk::PipelineMultisampleStateCreateInfo::default()
+            .rasterization_samples(vk::SampleCountFlags::TYPE_1);
+
+        let depth_stencil = vk::PipelineDepthStencilStateCreateInfo::default()
+            .depth_test_enable(self.depth_test)
+            .depth_write_enable(self.depth_write)
+            .depth_compare_op(self.depth_compare_op);
+
+        let color_blend_attachments: Vec<vk::PipelineColorBlendAttachmentState> = self
+            .color_formats
+            .iter()
+            .map(|_| {
+                let mut att = vk::PipelineColorBlendAttachmentState::default()
+                    .color_write_mask(vk::ColorComponentFlags::RGBA);
+
+                if matches!(self.blending, BlendMode::Alpha) {
+                    att = att
+                        .blend_enable(true)
+                        .src_color_blend_factor(vk::BlendFactor::SRC_ALPHA)
+                        .dst_color_blend_factor(vk::BlendFactor::ONE_MINUS_SRC_ALPHA)
+                        .color_blend_op(vk::BlendOp::ADD)
+                        .src_alpha_blend_factor(vk::BlendFactor::ONE)
+                        .dst_alpha_blend_factor(vk::BlendFactor::ZERO)
+                        .alpha_blend_op(vk::BlendOp::ADD);
+                }
+
+                att
+            })
+            .collect();
+
+        let color_blend =
+            vk::PipelineColorBlendStateCreateInfo::default().attachments(&color_blend_attachments);
+
+        let dynamic_states = [vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR];
+        let dynamic_state =
+            vk::PipelineDynamicStateCreateInfo::default().dynamic_states(&dynamic_states);
+
+        let viewport_state = vk::PipelineViewportStateCreateInfo::default()
+            .viewport_count(1)
+            .scissor_count(1);
+
+        let mut rendering_info = vk::PipelineRenderingCreateInfo::default()
+            .color_attachment_formats(&self.color_formats);
+
+        if let Some(fmt) = self.depth_format {
+            rendering_info = rendering_info.depth_attachment_format(fmt);
+        }
+
+        let mut info = vk::GraphicsPipelineCreateInfo::default()
+            .stages(&stage_infos)
+            .rasterization_state(&rasterization)
+            .multisample_state(&multisample)
+            .depth_stencil_state(&depth_stencil)
+            .color_blend_state(&color_blend)
+            .dynamic_state(&dynamic_state)
+            .viewport_state(&viewport_state)
+            .layout(layout)
+            .push_next(&mut rendering_info);
+
+        if has_vertex {
+            info = info
+                .vertex_input_state(&vertex_input)
+                .input_assembly_state(&input_assembly);
+        }
+
+        let pipeline = unsafe {
+            let result = device
+                .create_graphics_pipelines(vk::PipelineCache::null(), &[info], None)
+                .map_err(|(_, e)| e)?[0];
+
+            for module in modules {
+                device.destroy_shader_module(module, None);
+            }
+
+            result
+        };
+
+        Ok(Pipeline {
+            pipeline,
+            layout,
+            set_layouts,
+            bind_point: vk::PipelineBindPoint::GRAPHICS,
+        })
+    }
+}

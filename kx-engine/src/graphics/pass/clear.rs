@@ -12,7 +12,7 @@ pub struct ClearPass {
 impl ClearPass {
     pub fn new(device: &ash::Device) -> Result<Self> {
         let pipeline = ComputePipelineBuilder::new()
-            .shader(
+            .set_stage(
                 include_bytes!(concat!(env!("OUT_DIR"), "/clear.cs.spv")),
                 include_bytes!(concat!(env!("OUT_DIR"), "/clear.cs.meta")),
             )
