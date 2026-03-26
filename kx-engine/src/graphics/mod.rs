@@ -357,7 +357,7 @@ impl Graphics {
 
         let mut ctx = FrameContext {
             device: &self.device,
-            cmd: &self.command_buffers[self.frame_index],
+            cmd: &mut self.command_buffers[self.frame_index],
             rt: &self.draw_image,
             dsa: &mut self.descriptor_allocators[self.frame_index],
         };

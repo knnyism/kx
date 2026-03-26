@@ -9,6 +9,7 @@ pub struct Pipeline {
     pub pipeline: vk::Pipeline,
     pub layout: vk::PipelineLayout,
     pub set_layouts: Vec<vk::DescriptorSetLayout>,
+    pub bind_point: vk::PipelineBindPoint,
 }
 
 impl Pipeline {
@@ -93,14 +94,15 @@ impl PipelineBuilder {
             bail!("no stages specified");
         }
 
-        let (descriptor_set_layouts, layout) = self.create_layout(device)?;
+        let (set_layouts, layout) = self.create_layout(device)?;
 
         let pipeline = self.build_compute(device, &self.stages[0], layout)?;
 
         Ok(Pipeline {
             pipeline,
             layout,
-            set_layouts: descriptor_set_layouts,
+            set_layouts,
+            bind_point: vk::PipelineBindPoint::COMPUTE,
         })
     }
 

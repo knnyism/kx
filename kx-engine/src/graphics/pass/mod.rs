@@ -5,7 +5,7 @@ use super::{CommandBuffer, DescriptorAllocator, Image};
 
 pub struct FrameContext<'a> {
     pub device: &'a ash::Device,
-    pub cmd: &'a CommandBuffer,
+    pub cmd: &'a mut CommandBuffer,
     pub rt: &'a Image,
     pub dsa: &'a mut DescriptorAllocator,
 }

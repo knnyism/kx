@@ -47,15 +47,8 @@ impl Pass for ClearPass {
             )
             .update_set(ctx.device, set);
 
-        ctx.cmd
-            .bind_pipeline(vk::PipelineBindPoint::COMPUTE, self.pipeline.pipeline);
-
-        ctx.cmd.bind_descriptor_sets(
-            vk::PipelineBindPoint::COMPUTE,
-            self.pipeline.layout,
-            0,
-            &[set],
-        );
+        ctx.cmd.bind_pipeline(&self.pipeline);
+        ctx.cmd.bind_descriptor_sets(0, &[set]);
 
         let width = ctx.rt.extent.width;
         let height = ctx.rt.extent.height;

@@ -2,9 +2,14 @@ use anyhow::Result;
 
 use ash::vk;
 
+use super::Pipeline;
+
 pub struct CommandBuffer {
     device: ash::Device,
     command_buffer: vk::CommandBuffer,
+
+    current_bind_point: vk::PipelineBindPoint,
+    current_layout: vk::PipelineLayout,
 }
 
 impl CommandBuffer {
@@ -18,6 +23,8 @@ impl CommandBuffer {
         Ok(Self {
             device,
             command_buffer,
+            current_bind_point: vk::PipelineBindPoint::GRAPHICS,
+            current_layout: vk::PipelineLayout::null(),
         })
     }
 
@@ -41,25 +48,25 @@ impl CommandBuffer {
         unsafe { self.device.end_command_buffer(self.command_buffer).unwrap() };
     }
 
-    pub fn bind_pipeline(&self, bind_point: vk::PipelineBindPoint, pipeline: vk::Pipeline) {
+    pub fn bind_pipeline(&mut self, pipeline: &Pipeline) {
+        self.current_bind_point = pipeline.bind_point;
+        self.current_layout = pipeline.layout;
+
         unsafe {
-            self.device
-                .cmd_bind_pipeline(self.command_buffer, bind_point, pipeline);
+            self.device.cmd_bind_pipeline(
+                self.command_buffer,
+                pipeline.bind_point,
+                pipeline.pipeline,
+            );
         }
     }
 
-    pub fn bind_descriptor_sets(
-        &self,
-        bind_point: vk::PipelineBindPoint,
-        layout: vk::PipelineLayout,
-        first_set: u32,
-        descriptor_sets: &[vk::DescriptorSet],
-    ) {
+    pub fn bind_descriptor_sets(&self, first_set: u32, descriptor_sets: &[vk::DescriptorSet]) {
         unsafe {
             self.device.cmd_bind_descriptor_sets(
                 self.command_buffer,
-                bind_point,
-                layout,
+                self.current_bind_point,
+                self.current_layout,
                 first_set,
                 descriptor_sets,
                 &[],
