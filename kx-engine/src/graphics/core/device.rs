@@ -1,7 +1,7 @@
 use anyhow::{Result, bail};
 use std::ffi::{CStr, CString, c_void};
 
-use ash::vk;
+use ash::{ext, vk};
 
 use super::Instance;
 
@@ -250,11 +250,43 @@ impl<'a> PhysicalDeviceSelector<'a> {
     }
 }
 
+macro_rules! ext_functions {
+    (
+        $loader_field:ident {
+            $(
+                fn $method:ident ( $($arg:ident : $ty:ty),* $(,)? )
+                    $(-> $ret:ty)?
+                    => $loader_method:ident ;
+            )*
+        }
+    ) => {
+        $(
+            pub unsafe fn $method(
+                &self,
+                $($arg: $ty),*
+            ) $(-> $ret)? {
+                unsafe {
+                    self.$loader_field
+                    .as_ref()
+                    .expect(concat!(
+                        stringify!($method),
+                        ": extension not enabled"
+                    ))
+                    .$loader_method($($arg),*)
+                }
+            }
+        )*
+    };
+}
+
+#[derive(Clone)]
 pub struct Device {
     device: ash::Device,
     physical_device: vk::PhysicalDevice,
     graphics_family: u32,
     present_family: u32,
+
+    mesh_shader_fn: Option<ext::mesh_shader::Device>,
 }
 
 impl Device {
@@ -272,6 +304,35 @@ impl Device {
 
     pub fn destroy(&self) {
         unsafe { self.device.destroy_device(None) };
+    }
+
+    ext_functions! {
+        mesh_shader_fn {
+            fn cmd_draw_mesh_tasks_ext(
+                cmd: vk::CommandBuffer,
+                group_count_x: u32,
+                group_count_y: u32,
+                group_count_z: u32,
+            ) => cmd_draw_mesh_tasks;
+
+            fn cmd_draw_mesh_tasks_indirect_ext(
+                cmd: vk::CommandBuffer,
+                buffer: vk::Buffer,
+                offset: vk::DeviceSize,
+                draw_count: u32,
+                stride: u32,
+            ) => cmd_draw_mesh_tasks_indirect;
+
+            fn cmd_draw_mesh_tasks_indirect_count_ext(
+                cmd: vk::CommandBuffer,
+                buffer: vk::Buffer,
+                offset: vk::DeviceSize,
+                count_buffer: vk::Buffer,
+                count_offset: vk::DeviceSize,
+                max_draw_count: u32,
+                stride: u32,
+            ) => cmd_draw_mesh_tasks_indirect_count;
+        }
     }
 }
 
@@ -360,6 +421,13 @@ impl<'a> DeviceBuilder<'a> {
                 .create_device(self.selected.physical_device, &create_info, None)?
         };
 
+        let mesh_shader_fn = self
+            .selected
+            .extensions
+            .iter()
+            .any(|e| e.as_c_str() == ext::mesh_shader::NAME)
+            .then(|| ext::mesh_shader::Device::new(&*self.instance, &device));
+
         let graphics_queue = unsafe { device.get_device_queue(graphics_family, 0) };
         let present_queue = unsafe { device.get_device_queue(present_family, 0) };
 
@@ -369,6 +437,7 @@ impl<'a> DeviceBuilder<'a> {
                 physical_device: self.selected.physical_device,
                 graphics_family,
                 present_family,
+                mesh_shader_fn,
             },
             graphics_queue,
             present_queue,

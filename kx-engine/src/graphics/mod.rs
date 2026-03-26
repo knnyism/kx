@@ -24,7 +24,6 @@ pub struct Frame {
 pub struct Graphics {
     instance: Instance,
     device: Device,
-
     swapchain: Swapchain,
     allocator: Allocator,
 
@@ -89,12 +88,10 @@ impl Graphics {
             .build(window_handle, display_handle)?;
 
         let features_12 = vk::PhysicalDeviceVulkan12Features::default().buffer_device_address(true);
-
         let features_13 = vk::PhysicalDeviceVulkan13Features::default()
             .synchronization2(true)
             .dynamic_rendering(true)
             .maintenance4(true);
-
         let mesh_shader_features = vk::PhysicalDeviceMeshShaderFeaturesEXT::default()
             .task_shader(true)
             .mesh_shader(true);
@@ -151,7 +148,7 @@ impl Graphics {
         let mut allocator = {
             let create_desc = AllocatorCreateDesc {
                 instance: instance.clone(),
-                device: device.clone(),
+                device: (*device).clone(),
                 physical_device: device.physical_device(),
                 debug_settings: Default::default(),
                 buffer_device_address: true,
@@ -200,7 +197,6 @@ impl Graphics {
         Ok(Self {
             instance,
             device,
-
             swapchain,
             allocator,
 
@@ -226,7 +222,7 @@ impl Graphics {
 
     fn begin_frame(&mut self) -> Result<(u32, bool)> {
         let sync = &self.frame_syncs[self.frame_index];
-        let command_buffer = &self.command_buffers[self.frame_index];
+        let command_buffer = &mut self.command_buffers[self.frame_index];
 
         unsafe {
             self.device

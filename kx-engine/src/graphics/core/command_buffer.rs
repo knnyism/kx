@@ -2,18 +2,19 @@ use anyhow::Result;
 
 use ash::vk;
 
-use super::Pipeline;
+use super::{Device, Pipeline};
 
 pub struct CommandBuffer {
-    device: ash::Device,
     command_buffer: vk::CommandBuffer,
 
-    current_bind_point: vk::PipelineBindPoint,
-    current_layout: vk::PipelineLayout,
+    bind_point: vk::PipelineBindPoint,
+    layout: vk::PipelineLayout,
+
+    device: Device,
 }
 
 impl CommandBuffer {
-    pub fn new(device: ash::Device, command_pool: vk::CommandPool) -> Result<Self> {
+    pub fn new(device: Device, command_pool: vk::CommandPool) -> Result<Self> {
         let allocate_info = vk::CommandBufferAllocateInfo::default()
             .command_pool(command_pool)
             .command_buffer_count(1);
@@ -23,12 +24,14 @@ impl CommandBuffer {
         Ok(Self {
             device,
             command_buffer,
-            current_bind_point: vk::PipelineBindPoint::GRAPHICS,
-            current_layout: vk::PipelineLayout::null(),
+            bind_point: vk::PipelineBindPoint::default(),
+            layout: vk::PipelineLayout::null(),
         })
     }
 
-    pub fn reset(&self, flags: vk::CommandBufferResetFlags) {
+    pub fn reset(&mut self, flags: vk::CommandBufferResetFlags) {
+        self.layout = vk::PipelineLayout::null();
+
         unsafe {
             self.device
                 .reset_command_buffer(self.command_buffer, flags)
@@ -49,8 +52,8 @@ impl CommandBuffer {
     }
 
     pub fn bind_pipeline(&mut self, pipeline: &Pipeline) {
-        self.current_bind_point = pipeline.bind_point;
-        self.current_layout = pipeline.layout;
+        self.bind_point = pipeline.bind_point;
+        self.layout = pipeline.layout;
 
         unsafe {
             self.device.cmd_bind_pipeline(
@@ -65,8 +68,8 @@ impl CommandBuffer {
         unsafe {
             self.device.cmd_bind_descriptor_sets(
                 self.command_buffer,
-                self.current_bind_point,
-                self.current_layout,
+                self.bind_point,
+                self.layout,
                 first_set,
                 descriptor_sets,
                 &[],
@@ -77,6 +80,17 @@ impl CommandBuffer {
     pub fn dispatch(&self, group_count_x: u32, group_count_y: u32, group_count_z: u32) {
         unsafe {
             self.device.cmd_dispatch(
+                self.command_buffer,
+                group_count_x,
+                group_count_y,
+                group_count_z,
+            );
+        }
+    }
+
+    pub fn draw_mesh_tasks(&self, group_count_x: u32, group_count_y: u32, group_count_z: u32) {
+        unsafe {
+            self.device.cmd_draw_mesh_tasks_ext(
                 self.command_buffer,
                 group_count_x,
                 group_count_y,
@@ -173,19 +187,6 @@ impl CommandBuffer {
         unsafe {
             self.device.cmd_blit_image2(self.command_buffer, &blit_info);
         }
-    }
-
-    pub fn clear_color_image(
-        &self,
-        image: vk::Image,
-        layout: vk::ImageLayout,
-        value: vk::ClearColorValue,
-        range: vk::ImageSubresourceRange,
-    ) {
-        unsafe {
-            self.device
-                .cmd_clear_color_image(self.command_buffer, image, layout, &value, &[range]);
-        };
     }
 }
 
