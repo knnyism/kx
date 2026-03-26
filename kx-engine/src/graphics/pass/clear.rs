@@ -3,7 +3,7 @@ use anyhow::Result;
 use ash::vk;
 
 use super::{FrameContext, Pass};
-use crate::graphics::{DescriptorWriter, Pipeline, PipelineBuilder};
+use crate::graphics::{ComputePipelineBuilder, DescriptorWriter, Pipeline};
 
 pub struct ClearPass {
     pipeline: Pipeline,
@@ -11,7 +11,7 @@ pub struct ClearPass {
 
 impl ClearPass {
     pub fn new(device: &ash::Device) -> Result<Self> {
-        let pipeline = PipelineBuilder::new()
+        let pipeline = ComputePipelineBuilder::new()
             .shader(
                 include_bytes!(concat!(env!("OUT_DIR"), "/clear.cs.spv")),
                 include_bytes!(concat!(env!("OUT_DIR"), "/clear.cs.meta")),

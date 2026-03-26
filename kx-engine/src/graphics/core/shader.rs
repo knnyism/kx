@@ -16,7 +16,7 @@ pub struct PushConstantInfo {
     pub stage: vk::ShaderStageFlags,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct ShaderMeta {
     pub stage: vk::ShaderStageFlags,
     pub bindings: Vec<BindingInfo>,

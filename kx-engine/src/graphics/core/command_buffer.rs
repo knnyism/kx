@@ -88,6 +88,40 @@ impl CommandBuffer {
         }
     }
 
+    pub fn begin_rendering(&self, rendering_info: &vk::RenderingInfo) {
+        unsafe {
+            self.device
+                .cmd_begin_rendering(self.command_buffer, rendering_info);
+        }
+    }
+
+    pub fn end_rendering(&self) {
+        unsafe { self.device.cmd_end_rendering(self.command_buffer) };
+    }
+
+    pub fn set_viewport(&self, width: f32, height: f32) {
+        let viewport = vk::Viewport::default()
+            .width(width)
+            .height(height)
+            .min_depth(0.0)
+            .max_depth(1.0);
+
+        unsafe {
+            self.device
+                .cmd_set_viewport(self.command_buffer, 0, &[viewport]);
+        }
+    }
+
+    pub fn set_scissor(&self, width: u32, height: u32) {
+        let scissor =
+            vk::Rect2D::default().extent(vk::Extent2D::default().width(width).height(height));
+
+        unsafe {
+            self.device
+                .cmd_set_scissor(self.command_buffer, 0, &[scissor]);
+        }
+    }
+
     pub fn draw_mesh_tasks(&self, group_count_x: u32, group_count_y: u32, group_count_z: u32) {
         unsafe {
             self.device.cmd_draw_mesh_tasks_ext(
