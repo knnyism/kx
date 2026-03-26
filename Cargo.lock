@@ -98,19 +98,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ash-bootstrap"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4853e01346077ec640320e1609f56f484e75ea2a8903150afcdc37d0bc894a42"
-dependencies = [
- "anyhow",
- "ash",
- "ash-window",
- "raw-window-handle",
- "thiserror 2.0.18",
-]
-
-[[package]]
 name = "ash-window"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -919,7 +906,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "ash",
- "ash-bootstrap",
+ "ash-window",
  "gpu-allocator",
  "hassle-rs",
  "raw-window-handle",

@@ -13,10 +13,6 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    pub fn builder() -> PipelineBuilder {
-        PipelineBuilder::default()
-    }
-
     pub fn destroy(&self, device: &ash::Device) {
         unsafe {
             device.destroy_pipeline(self.pipeline, None);
@@ -42,8 +38,8 @@ pub struct PipelineBuilder {
     topology: vk::PrimitiveTopology,
 }
 
-impl Default for PipelineBuilder {
-    fn default() -> Self {
+impl PipelineBuilder {
+    pub fn new() -> Self {
         Self {
             stages: Vec::default(),
             color_formats: Vec::default(),
@@ -57,9 +53,7 @@ impl Default for PipelineBuilder {
             topology: vk::PrimitiveTopology::default(),
         }
     }
-}
 
-impl PipelineBuilder {
     fn build_compute(
         &self,
         device: &ash::Device,

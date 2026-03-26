@@ -12,3 +12,12 @@ pub use pipeline::*;
 
 pub mod descriptor;
 pub use descriptor::*;
+
+pub mod instance;
+pub use instance::*;
+
+pub mod device;
+pub use device::*;
+
+pub mod swapchain;
+pub use swapchain::*;

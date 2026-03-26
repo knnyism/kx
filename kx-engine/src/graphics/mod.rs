@@ -5,13 +5,8 @@ mod pass;
 use pass::*;
 
 use anyhow::Result;
-use std::{ops::Deref, sync::Arc};
 
 use ash::vk;
-use ash_bootstrap::{
-    DeviceBuilder, InstanceBuilder, PhysicalDeviceSelector, PreferredDeviceType, QueueType,
-    Swapchain, SwapchainBuilder,
-};
 use gpu_allocator::vulkan::{Allocator, AllocatorCreateDesc};
 use raw_window_handle::{DisplayHandle, WindowHandle};
 
@@ -27,8 +22,8 @@ pub struct Frame {
 }
 
 pub struct Graphics {
-    instance: Arc<ash_bootstrap::Instance>,
-    device: Arc<ash_bootstrap::Device>,
+    instance: Instance,
+    device: Device,
 
     swapchain: Swapchain,
     allocator: Allocator,
@@ -64,9 +59,8 @@ impl Drop for Graphics {
                 self.device.destroy_semaphore(sync.image_available, None);
             }
 
-            for i in 0..self.swapchain_semaphores.len() {
-                self.device
-                    .destroy_semaphore(self.swapchain_semaphores[i], None);
+            for &semaphore in &self.swapchain_semaphores {
+                self.device.destroy_semaphore(semaphore, None);
             }
 
             self.clear_pass.destroy(&self.device);
@@ -77,8 +71,6 @@ impl Drop for Graphics {
 
             self.draw_image.destroy(&self.device, &mut self.allocator);
 
-            let _ = self.swapchain.destroy_image_views();
-
             self.swapchain.destroy();
             self.device.destroy();
             self.instance.destroy();
@@ -88,6 +80,14 @@ impl Drop for Graphics {
 
 impl Graphics {
     pub fn new(window_handle: WindowHandle, display_handle: DisplayHandle) -> Result<Self> {
+        let instance = InstanceBuilder::new()
+            .app_name("kx")
+            .engine_name("kx-engine")
+            .api_version(vk::API_VERSION_1_3)
+            .validation(cfg!(debug_assertions))
+            .debug_messenger(cfg!(debug_assertions))
+            .build(window_handle, display_handle)?;
+
         let features_12 = vk::PhysicalDeviceVulkan12Features::default().buffer_device_address(true);
 
         let features_13 = vk::PhysicalDeviceVulkan13Features::default()
@@ -95,37 +95,27 @@ impl Graphics {
             .dynamic_rendering(true)
             .maintenance4(true);
 
-        let instance = InstanceBuilder::new(Some((window_handle, display_handle)))
-            .app_name("kx")
-            .engine_name("kx-engine")
-            .request_validation_layers(cfg!(debug_assertions))
-            .require_api_version(vk::API_VERSION_1_3)
-            .use_default_debug_messenger()
-            .build()?;
+        let mesh_shader_features = vk::PhysicalDeviceMeshShaderFeaturesEXT::default()
+            .task_shader(true)
+            .mesh_shader(true);
 
-        let physical_device = PhysicalDeviceSelector::new(instance.clone())
-            .preferred_device_type(PreferredDeviceType::Discrete)
+        let physical_device = PhysicalDeviceSelector::new(&instance)
+            .prefer_type(vk::PhysicalDeviceType::DISCRETE_GPU)
+            .require_extension(vk::KHR_SWAPCHAIN_NAME)
+            .require_extension(vk::EXT_MESH_SHADER_NAME)
             .add_required_extension_feature(features_12)
             .add_required_extension_feature(features_13)
+            .add_required_extension_feature(mesh_shader_features)
             .select()?;
 
-        let device = Arc::new(DeviceBuilder::new(physical_device, instance.clone()).build()?);
+        let (device, graphics_queue, present_queue) =
+            DeviceBuilder::new(&instance, physical_device).build()?;
 
-        let (_, graphics_queue) = device.get_queue(QueueType::Graphics)?;
-        let (_, present_queue) = device.get_queue(QueueType::Present)?;
-
-        let swapchain_builder = SwapchainBuilder::new(instance.clone(), device.clone());
-
-        let swapchain = swapchain_builder
-            .use_default_format_selection()
-            .use_default_present_modes()
-            .image_usage_flags(
-                vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::TRANSFER_DST,
-            )
-            .desired_size(vk::Extent2D::default().width(1024).height(768)) // TODO: LOL!
+        let (swapchain, swapchain_images) = SwapchainBuilder::new(&instance, &device)
+            .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::TRANSFER_DST)
+            .size(1024, 768) // TODO: LOL!
             .build()?;
 
-        let swapchain_images = swapchain.get_images()?;
         let swapchain_semaphores = {
             let semaphore_info = vk::SemaphoreCreateInfo::default();
             (0..swapchain_images.len())
@@ -152,21 +142,17 @@ impl Graphics {
             })
             .collect::<Result<Vec<_>, vk::Result>>()?;
 
-        let ash_device = device.deref().as_ref().clone();
-        let ash_instance = instance.deref().as_ref().clone();
-        let vk_physical_device = device.physical_device().as_ref().clone();
-
         let command_buffers = {
             (0..FRAMES_IN_FLIGHT)
-                .map(|_| CommandBuffer::new(ash_device.clone(), &command_pool))
+                .map(|_| CommandBuffer::new(device.clone(), command_pool))
                 .collect::<Result<Vec<_>, _>>()?
         };
 
         let mut allocator = {
             let create_desc = AllocatorCreateDesc {
-                instance: ash_instance.clone(),
-                device: ash_device.clone(),
-                physical_device: vk_physical_device.clone(), // awful!
+                instance: instance.clone(),
+                device: device.clone(),
+                physical_device: device.physical_device(),
                 debug_settings: Default::default(),
                 buffer_device_address: true,
                 allocation_sizes: Default::default(),
@@ -214,6 +200,7 @@ impl Graphics {
         Ok(Self {
             instance,
             device,
+
             swapchain,
             allocator,
 
@@ -245,14 +232,11 @@ impl Graphics {
             self.device
                 .wait_for_fences(&[sync.in_flight], true, u64::MAX)?
         };
-        let (image_index, _suboptimal) = match unsafe {
-            self.swapchain.acquire_next_image(
-                *self.swapchain.as_ref(),
-                u64::MAX,
-                sync.image_available,
-                vk::Fence::null(),
-            )
-        } {
+        let (image_index, _suboptimal) = match self.swapchain.acquire_next_image(
+            u64::MAX,
+            sync.image_available,
+            vk::Fence::null(),
+        ) {
             Ok(result) => result,
             Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => return Ok((0, true)),
             Err(e) => return Err(e.into()),
@@ -336,12 +320,8 @@ impl Graphics {
             .swapchains(&swapchains)
             .image_indices(&image_indices);
 
-        match unsafe {
-            self.swapchain
-                .queue_present(self.present_queue, &present_info)
-        } {
-            Ok(is_suboptimal) if is_suboptimal => return Ok(()),
-            Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => return Ok(()),
+        match self.swapchain.present(self.present_queue, &present_info) {
+            Ok(true) | Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => return Ok(()),
             Err(e) => return Err(e.into()),
             _ => {}
         };

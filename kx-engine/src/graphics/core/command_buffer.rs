@@ -13,9 +13,9 @@ pub struct CommandBuffer {
 }
 
 impl CommandBuffer {
-    pub fn new(device: ash::Device, command_pool: &vk::CommandPool) -> Result<Self> {
+    pub fn new(device: ash::Device, command_pool: vk::CommandPool) -> Result<Self> {
         let allocate_info = vk::CommandBufferAllocateInfo::default()
-            .command_pool(*command_pool)
+            .command_pool(command_pool)
             .command_buffer_count(1);
 
         let command_buffer = unsafe { device.allocate_command_buffers(&allocate_info)? }[0];
