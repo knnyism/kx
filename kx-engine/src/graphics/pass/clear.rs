@@ -34,7 +34,9 @@ impl Pass for ClearPass {
             vk::ImageLayout::GENERAL,
         );
 
-        let set = ctx.dsa.allocate(ctx.device, self.pipeline.set_layouts[0]);
+        let set = ctx
+            .dalloc
+            .allocate(ctx.device, self.pipeline.set_layouts[0]);
 
         DescriptorWriter::default()
             .write_image(

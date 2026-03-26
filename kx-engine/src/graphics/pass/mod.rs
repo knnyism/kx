@@ -7,7 +7,7 @@ pub struct FrameContext<'a> {
     pub device: &'a ash::Device,
     pub cmd: &'a mut CommandBuffer,
     pub rt: &'a Image,
-    pub dsa: &'a mut DescriptorAllocator,
+    pub dalloc: &'a mut DescriptorAllocator,
 }
 
 pub trait Pass {

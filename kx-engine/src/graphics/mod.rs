@@ -359,7 +359,7 @@ impl Graphics {
             device: &self.device,
             cmd: &mut self.command_buffers[self.frame_index],
             rt: &self.draw_image,
-            dsa: &mut self.descriptor_allocators[self.frame_index],
+            dalloc: &mut self.descriptor_allocators[self.frame_index],
         };
 
         self.clear_pass.record(&mut ctx);
