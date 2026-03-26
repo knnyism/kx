@@ -6,7 +6,7 @@ use pass::*;
 
 use anyhow::Result;
 
-use ash::vk;
+use ash::{ext, khr, vk};
 use gpu_allocator::vulkan::{Allocator, AllocatorCreateDesc};
 use raw_window_handle::{DisplayHandle, WindowHandle};
 
@@ -101,8 +101,8 @@ impl Graphics {
 
         let physical_device = PhysicalDeviceSelector::new(&instance)
             .prefer_type(vk::PhysicalDeviceType::DISCRETE_GPU)
-            .require_extension(vk::KHR_SWAPCHAIN_NAME)
-            .require_extension(vk::EXT_MESH_SHADER_NAME)
+            .require_extension(khr::swapchain::NAME)
+            .require_extension(ext::mesh_shader::NAME)
             .add_required_extension_feature(features_12)
             .add_required_extension_feature(features_13)
             .add_required_extension_feature(mesh_shader_features)
