@@ -1,5 +1,6 @@
 # shit i wanna do for now (this will later become a features list)
 
+- render graph
 - forward+
 - meshlet based renderer: 
     - fully gpu driven, drawing using indirect mesh tasks with count
@@ -12,12 +13,14 @@
 
 ## week 1
 
-- initialize ash, gpu-allocator and egui
+- initialize ash, gpu-allocator 
 - get A Fucking Triangle on the screen
 - shader reflection (hassle-rs + rspirv-reflect?)
 
 ## week 2
 
+- render graph
+- resource registry
 - custom model format
 - gltf loading and meshlet generation
 - set up depth prepass
