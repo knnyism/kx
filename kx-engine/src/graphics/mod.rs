@@ -44,6 +44,7 @@ pub struct Graphics {
     draw_image: Image,
 
     clear_pass: ClearPass,
+    triangle_pass: TrianglePass,
 }
 
 impl Drop for Graphics {
@@ -62,6 +63,7 @@ impl Drop for Graphics {
                 self.device.destroy_semaphore(semaphore, None);
             }
 
+            self.triangle_pass.destroy(&self.device);
             self.clear_pass.destroy(&self.device);
 
             for descriptor_allocator in &mut self.descriptor_allocators {
@@ -193,6 +195,7 @@ impl Graphics {
         )?;
 
         let clear_pass = ClearPass::new(&device)?;
+        let triangle_pass = TrianglePass::new(&device, draw_image.format)?;
 
         Ok(Self {
             instance,
@@ -217,6 +220,7 @@ impl Graphics {
             draw_image,
 
             clear_pass,
+            triangle_pass,
         })
     }
 
@@ -339,6 +343,7 @@ impl Graphics {
         };
 
         self.clear_pass.record(&mut ctx);
+        self.triangle_pass.record(&mut ctx);
 
         self.end_frame(image_index)?;
 

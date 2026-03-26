@@ -140,5 +140,25 @@ fn main() {
         "clear.cs",
     );
 
+    compile_shader(
+        &compiler,
+        &library,
+        &out_dir,
+        &shader_dir.join("triangle.ms.hlsl"),
+        "main",
+        "ms_6_5",
+        "triangle.ms",
+    );
+
+    compile_shader(
+        &compiler,
+        &library,
+        &out_dir,
+        &shader_dir.join("triangle.ps.hlsl"),
+        "main",
+        "ps_6_0",
+        "triangle.ps",
+    );
+
     println!("cargo::rerun-if-changed=shaders/");
 }
