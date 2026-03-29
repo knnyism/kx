@@ -94,6 +94,8 @@ impl Graphics {
             .synchronization2(true)
             .dynamic_rendering(true)
             .maintenance4(true);
+        let local_read_features = vk::PhysicalDeviceDynamicRenderingLocalReadFeaturesKHR::default()
+            .dynamic_rendering_local_read(true);
         let mesh_shader_features = vk::PhysicalDeviceMeshShaderFeaturesEXT::default()
             .task_shader(true)
             .mesh_shader(true);
@@ -102,9 +104,11 @@ impl Graphics {
             .prefer_type(vk::PhysicalDeviceType::DISCRETE_GPU)
             .require_extension(khr::swapchain::NAME)
             .require_extension(ext::mesh_shader::NAME)
+            .require_extension(khr::dynamic_rendering_local_read::NAME)
             .add_required_extension_feature(features_12)
             .add_required_extension_feature(features_13)
             .add_required_extension_feature(mesh_shader_features)
+            .add_required_extension_feature(local_read_features)
             .select()?;
 
         let (device, graphics_queue, present_queue) =
