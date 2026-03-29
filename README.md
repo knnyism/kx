@@ -1,4 +1,4 @@
-Personal project where the main purpose is to learn rust, research graphics (and maybe engine) topics and attempt implementing some that I find interesting. Below ⬇️ is a possibly volatile list of *Things I Plan To Do*:
+Vulkan renderer, personal project, where the main purpose is to learn rust, research graphics (and maybe engine) topics and attempt implementing some that I find interesting. Below ⬇️ is a possibly volatile list of *Things I Plan To Do*:
 
 # features (TODO)
 
