@@ -1,8 +1,8 @@
 pub mod core;
 use core::*;
 
-mod pass;
-use pass::*;
+mod frame_graph;
+use frame_graph::*;
 
 use anyhow::Result;
 

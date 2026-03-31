@@ -133,6 +133,13 @@ impl CommandBuffer {
         }
     }
 
+    pub fn pipeline_barrier(&self, dependency_info: &vk::DependencyInfo) {
+        unsafe {
+            self.device
+                .cmd_pipeline_barrier2(self.command_buffer, dependency_info);
+        }
+    }
+
     pub fn transition_image(
         &self,
         image: vk::Image,
